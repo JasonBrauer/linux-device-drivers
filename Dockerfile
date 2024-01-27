@@ -1,10 +1,13 @@
-FROM ubuntu:jammy
+FROM ubuntu:20.04
 
 RUN mkdir /hack
+WORKDIR /hack
 
-# may not need this, can look up gcc version needed with /proc/version
-# check gcc versions available with apt-cache. . 
-RUN apt update && apt install linux-doc
+RUN apt-get update && apt-get install -y wget
+
+# need to match host kernel version: cat /proc/version
+RUN wget https://www.kernel.org/pub/linux/kernel/v5.x/linux-5.4.tar.gz
+RUN tar -xzf ./linux-5.4.tar.gz
 
 # TODO: install kernel source tree in container from kernel.org and unzip
 # https://unix.stackexchange.com/questions/115577/how-to-create-a-kernel-source-tree
