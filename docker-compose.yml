@@ -1,8 +1,9 @@
 services:
   hack_device_drivers:
     build: .
-    # privileged: true
+    privileged: true
     volumes:
       - .:/hack:cached
+      - /lib/modules:/lib/modules
     command: /bin/sh -c "while sleep 1000; do :; done"
     working_dir : /hack
