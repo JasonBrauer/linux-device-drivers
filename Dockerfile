@@ -1,5 +1,6 @@
 FROM ubuntu:20.04
 
+# may not be needed if volume mount creates
 RUN mkdir /lib/modules
 RUN mkdir /hack
 
