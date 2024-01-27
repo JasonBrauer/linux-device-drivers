@@ -1,6 +1,7 @@
 services:
   hack_device_drivers:
     build: .
+    # privileged: true
     volumes:
       - .:/hack:cached
     command: /bin/sh -c "while sleep 1000; do :; done"
