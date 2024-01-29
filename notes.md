@@ -5,7 +5,7 @@ uname -r
 ```
 
 ### building an out of tree module
-From the directory containing the out of tree module
+From the directory containing the out of tree module source
 ```bash
 make -C </path/to/kernel/tree> M=`pwd` modules
 ```
