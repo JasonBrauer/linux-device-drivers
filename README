@@ -1,3 +1,3 @@
 Repo to work through the examples in [**Linux Device Drivers, Third Edition**](https://lwn.net/Kernel/LDD3/) on a modern linux kernel.
 
-Stopped: chapter 3, Char Device Registration
+Stopped: Ch. 4, but need to build driver with open, release, read, write driver functions
