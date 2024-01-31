@@ -1,3 +1,7 @@
-Repo to work through the examples in [**Linux Device Drivers, Third Edition**](https://lwn.net/Kernel/LDD3/) on a modern linux kernel.
+Repo to work through the examples in [**Linux Device Drivers, Third Edition**](https://lwn.net/Kernel/LDD3/) on a modern linux kernel. Write / update driver examples by chapter.
 
-Stopped: Ch. 4, but need to build driver with open, release, read, write driver functions
+LDD3 Repo References:
+- O'Reilly initial repository for Kernel 2.6.10
+- [update for newer kernels](https://github.com/martinezjavier/ldd3)
+
+Stopped: Implementation Ch. 3, scull_load script
