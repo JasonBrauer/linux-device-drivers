@@ -14,6 +14,9 @@
  *
  */
 
+#include <linux/cdev.h> /* cdev struct and associated helper functions */
+#include <linux/errno.h> /* error codes */
+#include <linux/fs.h> /* file_operations, file, inode structs */
 #include <linux/init.h> /* initialization and cleanup functions */
 #include <linux/kernel.h>	/* printk() */
 #include <linux/kdev_t.h> /* dev_t macros*/
@@ -68,4 +71,36 @@ int scull_init_module(void)
 		printk(KERN_WARNING "scull: can't get major %d\n", scull_major);
 		return result;
 	}
+}
+
+
+/* defines driver operations */
+struct file_operations scull_fops = {
+	.owner =    THIS_MODULE,
+	.llseek =   scull_llseek,
+	.read =     scull_read,
+	.write =    scull_write,
+	.unlocked_ioctl = scull_ioctl,
+	.open =     scull_open,
+	.release =  scull_release,
+};
+
+
+/*
+ * Set up the char_dev structure for this device. The cdev structure interfaces our device to the 
+ * kernel
+ */
+static void scull_setup_cdev(struct scull_dev *dev, int index)
+{
+	/* make a dev_t with the existing allocated major device number and incremented minor number */
+	int err, devno = MKDEV(scull_major, scull_minor + index);
+    
+	/* inititalize an existing cdev struct */
+	cdev_init(&dev->cdev, &scull_fops);
+	dev->cdev.owner = THIS_MODULE;
+	/* tell the kernel about the new char device -> device is "live" now */
+	err = cdev_add (&dev->cdev, devno, 1);
+	/* Fail gracefully if need be */
+	if (err)
+		printk(KERN_NOTICE "Error %d adding scull%d", err, index);
 }
