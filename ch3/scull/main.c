@@ -14,11 +14,15 @@
  *
  */
 
+#include <linux/init.h> /* initialization and cleanup functions */
 #include <linux/kernel.h>	/* printk() */
 #include <linux/kdev_t.h> /* dev_t macros*/
+#include <linux/module.h> /* symbols and functions needed by loadable modules */
+#include <linux/moduleparam.h> /* module_param macro */
 #include <linux/types.h> /* dev_t */
 
-#include "scull.h"
+
+#include "scull.h" /* device number defs, public variables and functions */
 
 
 /*
