@@ -5,3 +5,4 @@ linux*
 *.o
 *.symvers
 *.order
+.vscode
