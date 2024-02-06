@@ -12,4 +12,7 @@ WORKDIR /kernel
 RUN apt-get update && \
 apt-get -y install build-essential libncurses-dev bison flex libssl-dev libelf-dev bc
 
+RUN apt-get install -y git
+RUN git config --global --add safe.directory /hack
+
 WORKDIR /hack
