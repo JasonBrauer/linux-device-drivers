@@ -25,6 +25,7 @@
 #include <linux/moduleparam.h> /* module_param macro */
 #include <linux/slab.h> /* kernel memory management - kfree, kmalloc*/
 #include <linux/types.h> /* dev_t */
+#include <linux/uaccess.h>	/* copy_*_user */
 
 
 #include "scull.h" /* device number defs, public variables and functions */
@@ -170,4 +171,83 @@ int scull_release(struct inode *inode, struct file *filp)
 {
 	/* current flavor of scull has no device to shut down so just returns success */
 	return 0;
+}
+
+
+/* copies requested count of bytes from the kernel space to a provided user space buffer */
+ssize_t scull_read(struct file *filp, char __user *buf, size_t count,
+                loff_t *f_pos)
+{
+	struct scull_dev *dev = filp->private_data; 
+	struct scull_qset *dptr;	/* the first listitem */
+	int quantum = dev->quantum, qset = dev->qset;
+	int itemsize = quantum * qset; /* how many bytes in the listitem */
+	int item, s_pos, q_pos, rest;
+	ssize_t retval = 0;
+
+	/* mutex_lock_interruptible replaces 'down_interruptible' in original source */
+	if (mutex_lock_interruptible(&dev->lock))
+		return -ERESTARTSYS;
+	if (*f_pos >= dev->size)
+		goto out;
+	if (*f_pos + count > dev->size)
+		count = dev->size - *f_pos;
+
+	/* find listitem, qset index, and offset in the quantum */
+	item = (long)*f_pos / itemsize;
+	rest = (long)*f_pos % itemsize;
+	/* set position and quantum position */
+	s_pos = rest / quantum; q_pos = rest % quantum;
+
+	/* follow the list up to the right position (defined elsewhere) */
+	dptr = scull_follow(dev, item);
+
+	if (dptr == NULL || !dptr->data || ! dptr->data[s_pos])
+		goto out; /* don't fill holes */
+
+	/* read only up to the end of this quantum */
+	if (count > quantum - q_pos)
+		count = quantum - q_pos;
+
+	if (copy_to_user(buf, dptr->data[s_pos] + q_pos, count)) {
+		retval = -EFAULT;
+		goto out;
+	}
+	*f_pos += count;
+	retval = count;
+
+  out:
+	/* mutex_lock replaces 'up' in original source */
+	mutex_unlock(&dev->lock);
+	return retval;
+}
+
+
+/*
+ * Follow the list
+ */
+struct scull_qset *scull_follow(struct scull_dev *dev, int n)
+{
+	struct scull_qset *qs = dev->data;
+
+    /* Allocate first qset explicitly if need be */
+	if (! qs) {
+		qs = dev->data = kmalloc(sizeof(struct scull_qset), GFP_KERNEL);
+		if (qs == NULL)
+			return NULL;  /* Never mind */
+		memset(qs, 0, sizeof(struct scull_qset));
+	}
+
+	/* Then follow the list */
+	while (n--) {
+		if (!qs->next) {
+			qs->next = kmalloc(sizeof(struct scull_qset), GFP_KERNEL);
+			if (qs->next == NULL)
+				return NULL;  /* Never mind */
+			memset(qs->next, 0, sizeof(struct scull_qset));
+		}
+		qs = qs->next;
+		continue;
+	}
+	return qs;
 }
