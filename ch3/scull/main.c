@@ -16,12 +16,14 @@
 
 #include <linux/cdev.h> /* cdev struct and associated helper functions */
 #include <linux/errno.h> /* error codes */
+#include <linux/fcntl.h> /* O_ACCMODE */
 #include <linux/fs.h> /* file_operations, file, inode structs */
 #include <linux/init.h> /* initialization and cleanup functions */
-#include <linux/kernel.h>	/* printk() */
+#include <linux/kernel.h>	/* printk(), container_of() */
 #include <linux/kdev_t.h> /* dev_t macros*/
 #include <linux/module.h> /* symbols and functions needed by loadable modules */
 #include <linux/moduleparam.h> /* module_param macro */
+#include <linux/slab.h> /* kernel memory management - kfree, kmalloc*/
 #include <linux/types.h> /* dev_t */
 
 
@@ -99,8 +101,63 @@ static void scull_setup_cdev(struct scull_dev *dev, int index)
 	cdev_init(&dev->cdev, &scull_fops);
 	dev->cdev.owner = THIS_MODULE;
 	/* tell the kernel about the new char device -> device is "live" now */
-	err = cdev_add (&dev->cdev, devno, 1);
+	err = cdev_add(&dev->cdev, devno, 1);
 	/* Fail gracefully if need be */
 	if (err)
 		printk(KERN_NOTICE "Error %d adding scull%d", err, index);
+}
+
+
+/* Any initialization in preparation for later operations: 
+ * check for device specific errors, 
+ * initialize the device if it is being opened for the first time, 
+ * update the file operations (f_op) pointer if necessary, 
+ * allocate and fill any data structure to be put in the file pointer private data field (filp->private_data), 
+ */
+int scull_open(struct inode *inode, struct file *filp)
+{
+	struct scull_dev *dev; /* device information */
+
+	/* returns pointer to the scull_dev structure that holds the cdev pointer returned by the 
+	 * provided inode 
+	 */
+	dev = container_of(inode->i_cdev, struct scull_dev, cdev);
+	filp->private_data = dev; /* for other methods */
+
+	/* now trim to 0 the length of the device if open was write-only */
+	if ( (filp->f_flags & O_ACCMODE) == O_WRONLY) {
+		if (mutex_lock_interruptible(&dev->lock))
+			return -ERESTARTSYS;
+		scull_trim(dev); /* ignore errors */
+		mutex_unlock(&dev->lock);
+	}
+	return 0;          /* success */
+}
+
+
+/*
+ * Empty out the scull device; must be called with the device
+ * semaphore held.
+ */
+int scull_trim(struct scull_dev *dev)
+{
+	struct scull_qset *next, *dptr;
+	int qset = dev->qset;   /* "dev" is not-null */
+	int i;
+
+	for (dptr = dev->data; dptr; dptr = next) { /* all the list items */
+		if (dptr->data) {
+			for (i = 0; i < qset; i++)
+				kfree(dptr->data[i]);
+			kfree(dptr->data);
+			dptr->data = NULL;
+		}
+		next = dptr->next;
+		kfree(dptr);
+	}
+	dev->size = 0;
+	dev->quantum = scull_quantum;
+	dev->qset = scull_qset;
+	dev->data = NULL;
+	return 0;
 }
