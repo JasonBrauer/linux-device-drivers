@@ -161,3 +161,13 @@ int scull_trim(struct scull_dev *dev)
 	dev->data = NULL;
 	return 0;
 }
+
+/*reverse of open and is responsible for
+* deallocating anything open allocated in filp->private_data
+* shut down the device on last close - only called after all applications close the device
+*/
+int scull_release(struct inode *inode, struct file *filp)
+{
+	/* current flavor of scull has no device to shut down so just returns success */
+	return 0;
+}
