@@ -4,4 +4,4 @@ LDD3 Repo References:
 - O'Reilly initial repository for Kernel 2.6.10
 - [update for newer kernels](https://github.com/martinezjavier/ldd3)
 
-Stopped: Implementation Ch. 3, The release method
+Stopped: Implementation Ch. 3, The write method
