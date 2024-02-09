@@ -80,10 +80,8 @@ int scull_init_module(void)
 /* defines driver operations */
 struct file_operations scull_fops = {
 	.owner =    THIS_MODULE,
-	.llseek =   scull_llseek,
 	.read =     scull_read,
 	.write =    scull_write,
-	.unlocked_ioctl = scull_ioctl,
 	.open =     scull_open,
 	.release =  scull_release,
 };
@@ -175,8 +173,7 @@ int scull_release(struct inode *inode, struct file *filp)
 
 
 /* copies requested count of bytes from the kernel space to a provided user space buffer */
-ssize_t scull_read(struct file *filp, char __user *buf, size_t count,
-                loff_t *f_pos)
+ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 {
 	struct scull_dev *dev = filp->private_data; 
 	struct scull_qset *dptr;	/* the first listitem */
@@ -218,6 +215,61 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count,
 
   out:
 	/* mutex_lock replaces 'up' in original source */
+	mutex_unlock(&dev->lock);
+	return retval;
+}
+
+
+ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
+{
+	struct scull_dev *dev = filp->private_data;
+	struct scull_qset *dptr;
+	int quantum = dev->quantum, qset = dev->qset;
+	int itemsize = quantum * qset;
+	int item, s_pos, q_pos, rest;
+	ssize_t retval = -ENOMEM; /* value used in "goto out" statements */
+
+	/* mutex_lock_interruptible replaces 'down_interruptible' in original source */
+	if (mutex_lock_interruptible(&dev->lock))
+		return -ERESTARTSYS;
+
+	/* find listitem, qset index and offset in the quantum */
+	item = (long)*f_pos / itemsize;
+	rest = (long)*f_pos % itemsize;
+	s_pos = rest / quantum; q_pos = rest % quantum;
+
+	/* follow the list up to the right position */
+	dptr = scull_follow(dev, item);
+	if (dptr == NULL)
+		goto out;
+	if (!dptr->data) {
+		dptr->data = kmalloc(qset * sizeof(char *), GFP_KERNEL);
+		if (!dptr->data)
+			goto out;
+		memset(dptr->data, 0, qset * sizeof(char *));
+	}
+	if (!dptr->data[s_pos]) {
+		dptr->data[s_pos] = kmalloc(quantum, GFP_KERNEL);
+		if (!dptr->data[s_pos])
+			goto out;
+	}
+	/* write only up to the end of this quantum */
+	if (count > quantum - q_pos)
+		count = quantum - q_pos;
+
+	if (copy_from_user(dptr->data[s_pos]+q_pos, buf, count)) {
+		retval = -EFAULT;
+		goto out;
+	}
+	*f_pos += count;
+	retval = count;
+
+        /* update the size */
+	if (dev->size < *f_pos)
+		dev->size = *f_pos;
+
+  out:
+    /* mutex_lock replaces 'up' in original source */
 	mutex_unlock(&dev->lock);
 	return retval;
 }
