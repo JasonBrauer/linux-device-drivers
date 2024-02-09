@@ -4,4 +4,5 @@ LDD3 Repo References:
 - O'Reilly initial repository for Kernel 2.6.10
 - [update for newer kernels](https://github.com/martinezjavier/ldd3)
 
-Stopped: Implementation Ch. 3, The write method
+Stopped: Implementation Ch. 4, beginning
+TODO -> compile and install ch3 scull device and then run examples
