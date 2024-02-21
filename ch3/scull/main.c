@@ -53,6 +53,26 @@ MODULE_LICENSE("Dual BSD/GPL");
 struct scull_dev *scull_devices;	/* allocated in scull_init_module */
 
 
+/*
+ * Set up the char_dev structure for this device. The cdev structure interfaces our device to the 
+ * kernel
+ */
+static void scull_setup_cdev(struct scull_dev *dev, int index)
+{
+	/* make a dev_t with the existing allocated major device number and incremented minor number */
+	int err, devno = MKDEV(scull_major, scull_minor + index);
+    
+	/* inititalize an existing cdev struct */
+	cdev_init(&dev->cdev, &scull_fops);
+	dev->cdev.owner = THIS_MODULE;
+	/* tell the kernel about the new char device -> device is "live" now */
+	err = cdev_asdd(&dev->cdev, devno, 1);
+	/* Fail gracefully if need be */
+	if (err)
+		printk(KERN_NOTICE "Error %d adding scull%d", err, index);
+}
+
+
 int scull_init_module(void)
 {
 	int result, i;
@@ -115,26 +135,6 @@ struct file_operations scull_fops = {
 	.open =     scull_open,
 	.release =  scull_release,
 };
-
-
-/*
- * Set up the char_dev structure for this device. The cdev structure interfaces our device to the 
- * kernel
- */
-static void scull_setup_cdev(struct scull_dev *dev, int index)
-{
-	/* make a dev_t with the existing allocated major device number and incremented minor number */
-	int err, devno = MKDEV(scull_major, scull_minor + index);
-    
-	/* inititalize an existing cdev struct */
-	cdev_init(&dev->cdev, &scull_fops);
-	dev->cdev.owner = THIS_MODULE;
-	/* tell the kernel about the new char device -> device is "live" now */
-	err = cdev_asdd(&dev->cdev, devno, 1);
-	/* Fail gracefully if need be */
-	if (err)
-		printk(KERN_NOTICE "Error %d adding scull%d", err, index);
-}
 
 
 /* Any initialization in preparation for later operations: 
