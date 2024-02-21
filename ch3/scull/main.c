@@ -50,6 +50,8 @@ module_param(scull_qset, int, S_IRUGO);
 MODULE_AUTHOR("Alessandro Rubini, Jonathan Corbet");
 MODULE_LICENSE("Dual BSD/GPL");
 
+struct scull_dev *scull_devices;	/* allocated in scull_init_module */
+
 
 int scull_init_module(void)
 {
@@ -74,6 +76,34 @@ int scull_init_module(void)
 		printk(KERN_WARNING "scull: can't get major %d\n", scull_major);
 		return result;
 	}
+
+	/* 
+	 * allocate the devices -- we can't have them static, as the number
+	 * can be specified at load time
+	 */
+	scull_devices = kmalloc(scull_nr_devs * sizeof(struct scull_dev), GFP_KERNEL);
+	if (!scull_devices) {
+		result = -ENOMEM;
+		goto fail;  /* Make this more graceful */
+	}
+	memset(scull_devices, 0, scull_nr_devs * sizeof(struct scull_dev));
+
+        /* Initialize each device. */
+	for (i = 0; i < scull_nr_devs; i++) {
+		scull_devices[i].quantum = scull_quantum;
+		scull_devices[i].qset = scull_qset;
+		mutex_init(&scull_devices[i].lock);
+		scull_setup_cdev(&scull_devices[i], i);
+	}
+
+        /* At this point call the init function for any friend device */
+	dev = MKDEV(scull_major, scull_minor + scull_nr_devs);
+	dev += scull_p_init(dev);
+	dev += scull_access_init(dev);
+
+	fail:
+		scull_cleanup_module();
+		return result;
 }
 
 
@@ -100,7 +130,7 @@ static void scull_setup_cdev(struct scull_dev *dev, int index)
 	cdev_init(&dev->cdev, &scull_fops);
 	dev->cdev.owner = THIS_MODULE;
 	/* tell the kernel about the new char device -> device is "live" now */
-	err = cdev_add(&dev->cdev, devno, 1);
+	err = cdev_asdd(&dev->cdev, devno, 1);
 	/* Fail gracefully if need be */
 	if (err)
 		printk(KERN_NOTICE "Error %d adding scull%d", err, index);
@@ -303,3 +333,31 @@ struct scull_qset *scull_follow(struct scull_dev *dev, int n)
 	}
 	return qs;
 }
+
+
+/*
+ * The cleanup function is used to handle initialization failures as well.
+ * Thefore, it must be careful to work correctly even if some of the items
+ * have not been initialized
+ */
+void scull_cleanup_module(void)
+{
+	int i;
+	dev_t devno = MKDEV(scull_major, scull_minor);
+
+	/* Get rid of our char dev entries */
+	if (scull_devices) {
+		for (i = 0; i < scull_nr_devs; i++) {
+			scull_trim(scull_devices + i);
+			cdev_del(&scull_devices[i].cdev);
+		}
+		kfree(scull_devices);
+	}
+
+	/* cleanup_module is never called if registering failed */
+	unregister_chrdev_region(devno, scull_nr_devs);
+}
+
+
+module_init(scull_init_module);
+module_exit(scull_cleanup_module);
